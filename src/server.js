@@ -55,11 +55,14 @@ app.use(limiter);
 // BETTER AUTH — must come BEFORE json/body parser
 // Handles: /api/auth/sign-in, /api/auth/sign-up,
 //          /api/auth/callback/google, etc.
+//
+// NOTE: We use a root-level interceptor (NOT app.use("/api/auth"))
+// because Express 5 strips the mount prefix from req.url, breaking
+// Better Auth's internal router. This way req.url is always the full path.
 // ─────────────────────────────────────────────
 const authHandler = toNodeHandler(auth);
-app.use("/api/auth", (req, res) => {
-  // Restore full path so Better Auth can route correctly
-  req.url = "/api/auth" + req.url;
+app.use((req, res, next) => {
+  if (!req.url.startsWith("/api/auth")) return next();
   return authHandler(req, res);
 });
 
