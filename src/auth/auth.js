@@ -16,7 +16,7 @@ export const auth = betterAuth({
   // ── Email & Password ─────────────────────────────────────────────────────
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true, // users must verify email before login
+    requireEmailVerification: false, // re-enable once Resend is configured
     minPasswordLength: 8,
   },
 
@@ -41,9 +41,16 @@ export const auth = betterAuth({
 
   // ── Trusted origins (CORS) ────────────────────────────────────────────────
   trustedOrigins: [
-    process.env.FRONTEND_URL || "http://localhost:3000",
-    process.env.ADMIN_URL || "http://localhost:3001",
-  ],
+    // Local dev
+    "http://localhost:3000",
+    "http://localhost:3001",
+    // Production
+    "https://vela-noire.vercel.app",
+    "https://velanoire-backend-production.up.railway.app",
+    // Dynamic from env (overrides above in Railway)
+    process.env.FRONTEND_URL,
+    process.env.ADMIN_URL,
+  ].filter(Boolean),
 
   // ── User extra fields ────────────────────────────────────────────────────
   user: {

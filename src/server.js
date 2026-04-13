@@ -20,15 +20,21 @@ const PORT = process.env.PORT || 4000;
 app.use(helmet());
 
 // ─────────────────────────────────────────────
-// CORS — allow frontend & admin origins
+// CORS — allow frontend & admin origins (local + production)
 // ─────────────────────────────────────────────
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://vela-noire.vercel.app",
+  "https://velanoire-backend-production.up.railway.app",
+  process.env.FRONTEND_URL,
+  process.env.ADMIN_URL,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      process.env.ADMIN_URL || "http://localhost:3001",
-    ],
-    credentials: true, // allow cookies to be sent cross-origin
+    origin: allowedOrigins,
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),
 );
@@ -50,11 +56,11 @@ app.use(limiter);
 // Handles: /api/auth/sign-in, /api/auth/sign-up,
 //          /api/auth/callback/google, etc.
 // ─────────────────────────────────────────────
-app.use((req, res, next) => {
-  if (req.url.startsWith("/api/auth")) {
-    return toNodeHandler(auth)(req, res);
-  }
-  next();
+const authHandler = toNodeHandler(auth);
+app.use("/api/auth", (req, res) => {
+  // Restore full path so Better Auth can route correctly
+  req.url = "/api/auth" + req.url;
+  return authHandler(req, res);
 });
 
 // ─────────────────────────────────────────────
