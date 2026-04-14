@@ -10,6 +10,7 @@ import { auth } from "./auth/auth.js";
 import userRoutes from "./routes/user.routes.js";
 import wishlistRoutes from "./routes/wishlist.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -79,6 +80,7 @@ app.use(cookieParser());
 app.use("/api/user", userRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/cart", cartRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ─────────────────────────────────────────────
 // HEALTH CHECK

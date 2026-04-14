@@ -24,6 +24,7 @@ model User {
   phone            String?
   country          String?
   locale           String?
+  role             String   @default("user") // "user" | "admin"
 
   // Relations
   sessions         Session[]
