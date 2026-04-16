@@ -11,6 +11,10 @@ import userRoutes from "./routes/user.routes.js";
 import wishlistRoutes from "./routes/wishlist.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import uploadRoutes from "./routes/upload.routes.js";
+import productsRoutes from "./routes/products.routes.js";
+import categoriesRoutes from "./routes/categories.routes.js";
+import collectionsRoutes from "./routes/collections.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -27,6 +31,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://vela-noire.vercel.app",
+  "https://vela-noire-admin.vercel.app",
   "https://velanoire-backend-production.up.railway.app",
   process.env.FRONTEND_URL,
   process.env.ADMIN_URL,
@@ -81,6 +86,10 @@ app.use("/api/user", userRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/admin/products", productsRoutes);
+app.use("/api/admin/categories", categoriesRoutes);
+app.use("/api/admin/collections", collectionsRoutes);
 
 // ─────────────────────────────────────────────
 // HEALTH CHECK
