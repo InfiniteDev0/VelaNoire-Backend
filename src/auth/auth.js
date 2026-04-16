@@ -13,6 +13,13 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:4000",
 
+  // ── Rate limiting ─────────────────────────────────────────────────────────
+  rateLimit: {
+    enabled: process.env.NODE_ENV === "production", // disabled in dev
+    window: 60, // seconds
+    max: 20, // attempts per window (prod only)
+  },
+
   // ── Email & Password ─────────────────────────────────────────────────────
   emailAndPassword: {
     enabled: true,

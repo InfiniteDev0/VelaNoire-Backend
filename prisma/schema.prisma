@@ -34,6 +34,7 @@ model User {
   recentlyViewed   RecentlyViewed[]
   recentlySearched RecentlySearched[]
   notifications    Notification[]
+  orders           Order[]
 
   @@map("user")
 }
@@ -83,31 +84,118 @@ model Verification {
 }
 
 // ─────────────────────────────────────────────
+// E-COMMERCE ENUMS
+// ─────────────────────────────────────────────
+
+enum ProductType {
+  ABAYA
+  PERFUME
+  BRACELET
+  HANDBAG
+  SHAYLA
+  SHOES
+  ACCESSORY
+}
+
+enum ProductStatus {
+  IN_PRODUCTION    // not visible to customers
+  READY_TO_LAUNCH  // visible but not purchasable (countdown timer shown)
+  LIVE             // on sale
+  SOLD_OUT         // visible, not purchasable
+  DISCONTINUED
+}
+
+enum Season {
+  SUMMER
+  WINTER
+  AUTUMN
+  SPRING
+}
+
+// Abaya front-opening styles
+enum AbayaStyle {
+  OPEN_FRONT        // as seen on model
+  CLOSED_FRONT      // with buttons
+  HALF_CLOSED       // 3-4 buttons from top
+  COMPLETELY_CLOSED // wear from top
+}
+
+// ─────────────────────────────────────────────
 // E-COMMERCE MODELS
 // ─────────────────────────────────────────────
 
 model Product {
-  id           String      @id @default(cuid())
+  id           String        @id @default(cuid())
   name         String
-  slug         String      @unique
+  slug         String        @unique
   description  String?
-  price        Float
-  discount     Float?      @default(0) // percentage e.g. 20 = 20% off
-  isNew        Boolean     @default(true)
-  inStock      Boolean     @default(true)
-  images       String[]    // Array of image URLs (Cloudinary)
-  categoryId   String
-  category     Category    @relation(fields: [categoryId], references: [id])
-  collectionId String?
-  collection   Collection? @relation(fields: [collectionId], references: [id])
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  basePrice    Float                              // base price — variant can override
+  discount     Float?        @default(0)         // percentage e.g. 20 = 20% off
+  type         ProductType   @default(ABAYA)
+  status       ProductStatus @default(IN_PRODUCTION)
 
+  // Visibility & release
+  isNew            Boolean   @default(true)
+  isBestSeller     Boolean   @default(false)
+  isLimitedEdition Boolean   @default(false)
+  launchDate       DateTime?                     // when announced / visible on site
+  releaseDate      DateTime?                     // when it goes LIVE for purchase
+  tags             String[]                      // ["EID_SALE", "ONGOING_DISCOUNT", "RAMADAN"] etc.
+
+  // Media (fallback — variants have their own per-color images)
+  images       String[]                          // Cloudinary URLs
+
+  // Categorisation
+  categoryId   String
+  category     Category      @relation(fields: [categoryId], references: [id])
+  collectionId String?
+  collection   Collection?   @relation(fields: [collectionId], references: [id])
+  season       Season?                           // only for Seasonal collection products
+
+  // Story & branding (shown on product page)
+  story        String?                           // inspiration / reason behind this piece
+  designer     String?                           // maker / designer name
+  caption      String?                           // short social-style caption
+
+  // ── Abaya-specific fields (null for non-abaya types) ──────────────────
+  fabric           String?                       // e.g. "Nidha", "Crepe", "Chiffon Silk"
+  availableStyles  AbayaStyle[]                  // which front-opening styles are offered
+  availableSizes   String[]                      // ["XS","S","M","L","XL","2XL","3XL","Custom"]
+  availableLengths String[]                      // lengths in inches: ["50","51"..."60"]
+  shaylaIncluded   Boolean?                      // does a shayla come with this abaya?
+  // ──────────────────────────────────────────────────────────────────────
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  variants       ProductVariant[]
   wishlistedBy   WishlistItem[]
   cartItems      CartItem[]
+  orderItems     OrderItem[]
   recentlyViewed RecentlyViewed[]
 
   @@map("product")
+}
+
+// One row per color option — each color has its own images, stock, and SKU
+model ProductVariant {
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  colorName     String                           // e.g. "Premium Blue", "Ivory Cream"
+  colorHex      String?                          // e.g. "#1a2d6e" for UI color swatch
+  images        String[]                         // color-specific Cloudinary images
+  stock         Int      @default(0)
+  priceOverride Float?                           // overrides basePrice if set
+  sku           String   @unique                 // e.g. "VN-ABY-001-BLUE"
+  isDefault     Boolean  @default(false)         // which color is shown first on product page
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@map("product_variant")
 }
 
 model Category {
@@ -120,10 +208,14 @@ model Category {
 }
 
 model Collection {
-  id       String    @id @default(cuid())
-  name     String    @unique
-  slug     String    @unique
-  products Product[]
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?                            // what this collection is about
+  tagline     String?                            // short headline shown on hero
+  heroImage   String?                            // Cloudinary URL
+  heroVideo   String?                            // Cloudinary video URL
+  products    Product[]
 
   @@map("collection")
 }
@@ -133,17 +225,29 @@ model Collection {
 // ─────────────────────────────────────────────
 
 model CartItem {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   userId    String
   productId String
-  quantity  Int      @default(1)
-  isGift    Boolean  @default(false) // gift basket flag
+  variantId String?                              // which color variant was selected
+  quantity  Int     @default(1)
+  isGift    Boolean @default(false)
+
+  // Abaya purchase options — captured at add-to-cart
+  selectedSize          String?                  // "S" | "M" | "L" | "XL" | "XXL" | "Custom"
+  selectedStyle         AbayaStyle?              // which front-opening style
+  shaylaType            String?                  // "standard" | "custom" | "none"
+  customMeasurementsUrl String?                  // Cloudinary URL of uploaded measurements photo
+  comments              String?                  // extra requirements e.g. "extra buttons"
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, productId])
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  // One row per user + product + color variant combination
+  @@unique([userId, productId, variantId])
   @@map("cart_item")
 }
 
@@ -205,32 +309,45 @@ model Notification {
 }
 
 // ─────────────────────────────────────────────
-// ORDERS (foundation — expand in Phase 2)
+// ORDERS
 // ─────────────────────────────────────────────
 
 model Order {
-  id          String      @id @default(cuid())
-  userId      String
-  status      OrderStatus @default(PENDING)
-  total       Float
-  currency    String      @default("USD")
-  country     String
-  isGift      Boolean     @default(false)
+  id                    String      @id @default(cuid())
+  userId                String
+  user                  User        @relation(fields: [userId], references: [id])
+  status                OrderStatus @default(PENDING)
+  total                 Float
+  currency              String      @default("USD")
+  country               String
+  isGift                Boolean     @default(false)
   stripePaymentIntentId String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  items       OrderItem[]
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  items                 OrderItem[]
 
   @@map("order")
 }
 
+// Snapshot of what the customer actually ordered — never changes after placed
 model OrderItem {
   id        String  @id @default(cuid())
   orderId   String
   productId String
+  variantId String?
   quantity  Int
-  price     Float   // price at time of purchase
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  price     Float                                // price at time of purchase (snapshot)
+
+  // Abaya purchase snapshot
+  selectedSize          String?
+  selectedStyle         AbayaStyle?
+  shaylaType            String?
+  customMeasurementsUrl String?
+  comments              String?
+
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
 
   @@map("order_item")
 }
