@@ -62,6 +62,13 @@ export const auth = betterAuth({
   // ── User extra fields ────────────────────────────────────────────────────
   user: {
     additionalFields: {
+      role: {
+        type: "string",
+        required: false,
+        defaultValue: "user",
+        // Include in session so clients can read it from useSession()
+        input: false, // clients cannot set this — only set via DB/admin
+      },
       username: { type: "string", required: false },
       phone: { type: "string", required: false },
       country: { type: "string", required: false },

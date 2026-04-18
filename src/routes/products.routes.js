@@ -19,7 +19,21 @@ function slugify(str) {
     .replace(/-+/g, "-");
 }
 
-/** Extract Cloudinary publicId from a secure_url */
+/** Extract the actionable description from a verbose PrismaClientValidationError */
+function parsePrismaError(err) {
+  if (err.code === "P2002") return "A variant with that SKU already exists.";
+  if (err.code === "P2003") return "Invalid category or collection ID.";
+  if (err.code === "P2025") return "Record not found.";
+  // PrismaClientValidationError — strip the long invocation dump,
+  // keep only the description that follows the closing brace
+  if (err.name === "PrismaClientValidationError") {
+    const msg = err.message ?? "";
+    const lastBrace = msg.lastIndexOf("\n}");
+    const after = lastBrace !== -1 ? msg.slice(lastBrace + 2).trim() : "";
+    return after || "Invalid data — check all required fields and types.";
+  }
+  return err.message || "An unexpected error occurred.";
+}
 function publicIdFromUrl(url) {
   // e.g. https://res.cloudinary.com/cloud/image/upload/v123/vela-noire/products/abc.jpg
   // → vela-noire/products/abc
@@ -225,9 +239,11 @@ router.post("/", requireAdmin, async (req, res) => {
           availableStyles: Array.isArray(availableStyles)
             ? availableStyles
             : [],
-          availableSizes: Array.isArray(availableSizes) ? availableSizes : [],
+          availableSizes: Array.isArray(availableSizes)
+            ? availableSizes.map(String)
+            : [],
           availableLengths: Array.isArray(availableLengths)
-            ? availableLengths
+            ? availableLengths.map(String)
             : [],
           shaylaIncluded: shaylaIncluded ?? null,
           isNew: isNew ?? true,
@@ -275,8 +291,9 @@ router.post("/", requireAdmin, async (req, res) => {
         .status(400)
         .json({ error: "Invalid categoryId or collectionId." });
     }
-    console.error("[POST /admin/products]", err);
-    res.status(500).json({ error: "Failed to create product." });
+    const message = parsePrismaError(err);
+    console.error("[POST /admin/products]", err.message);
+    res.status(500).json({ error: message });
   }
 });
 
@@ -483,6 +500,50 @@ router.delete("/:id/variants/:variantId", requireAdmin, async (req, res) => {
       return res.status(404).json({ error: "Variant not found." });
     console.error("[DELETE /admin/products/:id/variants/:variantId]", err);
     res.status(500).json({ error: "Failed to delete variant." });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/admin/products/:id/variants
+// Add a new colour variant to an existing product
+// ─────────────────────────────────────────────
+router.post("/:id/variants", requireAdmin, async (req, res) => {
+  try {
+    const {
+      colorName,
+      colorHex,
+      sku,
+      stock,
+      priceOverride,
+      isDefault,
+      images,
+    } = req.body;
+    if (!colorName)
+      return res.status(400).json({ error: "colorName is required." });
+    if (!sku) return res.status(400).json({ error: "SKU is required." });
+
+    const variant = await prisma.productVariant.create({
+      data: {
+        productId: req.params.id,
+        colorName,
+        colorHex: colorHex || null,
+        sku,
+        stock: parseInt(stock, 10) || 0,
+        priceOverride: priceOverride ? parseFloat(priceOverride) : null,
+        isDefault: isDefault ?? false,
+        images: Array.isArray(images)
+          ? images.map((i) => (typeof i === "string" ? i : i.url))
+          : [],
+      },
+    });
+    res.status(201).json({ variant });
+  } catch (err) {
+    if (err.code === "P2002")
+      return res.status(409).json({ error: "SKU already in use." });
+    if (err.code === "P2003")
+      return res.status(404).json({ error: "Product not found." });
+    console.error("[POST /admin/products/:id/variants]", err.message);
+    res.status(500).json({ error: "Failed to create variant." });
   }
 });
 

@@ -173,6 +173,7 @@ model Product {
   cartItems      CartItem[]
   orderItems     OrderItem[]
   recentlyViewed RecentlyViewed[]
+  modelFeatures  ModelProduct[]
 
   @@map("product")
 }
@@ -360,4 +361,43 @@ enum OrderStatus {
   DELIVERED
   CANCELLED
   REFUNDED
+}
+
+// ─────────────────────────────────────────────
+// BRAND MODELS / AMBASSADORS
+// Women who represent Vela Noire — linked to
+// products they wear in campaigns & editorials.
+// ─────────────────────────────────────────────
+
+model BrandModel {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  bio          String?                           // short personal story / intro
+  nationality  String?                           // e.g. "Saudi Arabia"
+  profileImage String?                           // main editorial portrait
+  images       String[]                          // campaign / editorial photos
+  videos       String[]                          // Cloudinary video URLs (commercial, behind-scenes)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  products     ModelProduct[]
+
+  @@map("brand_model")
+}
+
+// Which model is linked to which product (many-to-many)
+model ModelProduct {
+  id        String     @id @default(cuid())
+  modelId   String
+  model     BrandModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  caption   String?                              // e.g. "Wearing the Midnight Bloom in Steel Ash"
+  linkImage String?                              // photo of the model wearing this product
+  createdAt DateTime   @default(now())
+
+  @@unique([modelId, productId])
+  @@map("model_product")
 }

@@ -15,6 +15,8 @@ import uploadRoutes from "./routes/upload.routes.js";
 import productsRoutes from "./routes/products.routes.js";
 import categoriesRoutes from "./routes/categories.routes.js";
 import collectionsRoutes from "./routes/collections.routes.js";
+import storeRoutes from "./routes/store.routes.js";
+import modelsRoutes from "./routes/models.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -46,16 +48,42 @@ app.use(
 );
 
 // ─────────────────────────────────────────────
-// RATE LIMITING — global: 100 req / 15 min
+// RATE LIMITING
+//
+// Two tiers:
+//   auth/admin — strict: 30 req / 15 min (brute-force protection)
+//   auth      — strict:   30 req / 15 min  (brute-force protection on login)
+//   admin     — relaxed: 500 req / 15 min  (admin panel fires many parallel requests per page)
+//   public store — relaxed: 300 req / 15 min (CDN-cached responses
+//     rarely hit this, but SSR nodes will on ISR revalidation)
 // ─────────────────────────────────────────────
-const limiter = rateLimit({
+const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later." },
 });
-app.use(limiter);
+
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+
+const storeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+
+app.use("/api/auth", authLimiter);
+app.use("/api/admin", adminLimiter);
+app.use("/api/store", storeLimiter);
 
 // ─────────────────────────────────────────────
 // BETTER AUTH — must come BEFORE json/body parser
@@ -90,6 +118,8 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/admin/products", productsRoutes);
 app.use("/api/admin/categories", categoriesRoutes);
 app.use("/api/admin/collections", collectionsRoutes);
+app.use("/api/admin/models", modelsRoutes);
+app.use("/api/store", storeRoutes);
 
 // ─────────────────────────────────────────────
 // HEALTH CHECK

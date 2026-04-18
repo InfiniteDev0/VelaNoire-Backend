@@ -24,18 +24,19 @@ router.get("/", requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/collections/:id — single collection detail
-router.get("/:id", requireAdmin, async (req, res) => {
+// GET /api/admin/collections/:idOrSlug — single collection detail (accepts id OR slug)
+router.get("/:idOrSlug", requireAdmin, async (req, res) => {
   try {
-    const collection = await prisma.collection.findUnique({
-      where: { id: req.params.id },
+    const param = req.params.idOrSlug;
+    const collection = await prisma.collection.findFirst({
+      where: { OR: [{ id: param }, { slug: param }] },
       include: { _count: { select: { products: true } } },
     });
     if (!collection)
       return res.status(404).json({ error: "Collection not found." });
     res.json({ collection });
   } catch (err) {
-    console.error("[GET /collections/:id]", err);
+    console.error("[GET /collections/:idOrSlug]", err);
     res.status(500).json({ error: "Failed to fetch collection." });
   }
 });
@@ -49,7 +50,6 @@ router.patch("/:id", requireAdmin, async (req, res) => {
       "description",
       "heroImage",
       "heroVideo",
-      "isActive",
     ];
     const data = Object.fromEntries(
       Object.entries(req.body).filter(([k]) => allowed.includes(k)),

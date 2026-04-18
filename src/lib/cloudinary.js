@@ -20,6 +20,8 @@ export const UPLOAD_FOLDERS = {
   collections: "vela-noire/collections", // collection hero images
   videos: "vela-noire/videos", // collection hero videos
   measurements: "vela-noire/measurements", // customer measurement photos
+  models: "vela-noire/models", // brand model portraits & editorial photos
+  modelVideos: "vela-noire/model-videos", // brand model campaign videos
 };
 
 // ─────────────────────────────────────────────
@@ -97,7 +99,9 @@ export function generateSignature(folder, resourceType = "image") {
       if (t.quality) parts.push(`q_${t.quality}`);
       return parts.join(",");
     }).join("|");
-    baseParams.resource_type = "video";
+    // NOTE: resource_type must NOT be included in signed params —
+    // Cloudinary puts it in the URL endpoint, not the form body.
+    // Including it here causes a signature mismatch → 401.
   }
 
   const signature = cloudinary.utils.api_sign_request(

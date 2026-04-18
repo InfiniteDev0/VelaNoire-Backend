@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { prisma } from "../lib/prisma.js";
 import {
   generateSignature,
   deleteResource,
@@ -14,7 +15,14 @@ const router = Router();
 // admin: all folders
 // auth user: measurements only (custom order photos)
 // ─────────────────────────────────────────────
-const ADMIN_FOLDERS = ["products", "variants", "collections", "videos"];
+const ADMIN_FOLDERS = [
+  "products",
+  "variants",
+  "collections",
+  "videos",
+  "models",
+  "modelVideos",
+];
 const USER_FOLDERS = ["measurements"];
 
 // ─────────────────────────────────────────────
@@ -49,8 +57,12 @@ router.get("/sign", requireAuth, async (req, res) => {
         .json({ error: "Invalid type. Must be 'image' or 'video'." });
     }
 
-    // Check permissions — non-admin users can only upload measurements
-    const isAdmin = req.user.role === "admin";
+    // Check permissions — always fetch role fresh from DB (session may not include it)
+    const dbUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { role: true },
+    });
+    const isAdmin = dbUser?.role === "admin";
     if (!isAdmin && !USER_FOLDERS.includes(folderKey)) {
       return res
         .status(403)
